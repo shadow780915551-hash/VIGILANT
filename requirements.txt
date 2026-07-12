@@ -1,0 +1,11 @@
+
+fastapi
+uvicorn
+opencv-python
+ultralytics
+python-multipart
+jinja2
+numpy
+matplotlib
+scikit-learn
+seaborn
