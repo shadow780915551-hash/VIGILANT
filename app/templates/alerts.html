@@ -1,0 +1,48 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VIGILANT - All Alerts</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1 class="logo">VIGILANT</h1>
+            <a href="/" class="btn btn-back">← Back to Dashboard</a>
+        </header>
+
+        <div class="card full-width">
+            <h2>All Alerts</h2>
+            <div class="alerts-table-container">
+                <table class="alerts-table">
+                    <thead>
+                        <tr>
+                            <th>Severity</th>
+                            <th>Confidence</th>
+                            <th>Detections</th>
+                            <th>Timestamp</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for alert in alerts %}
+                        <tr class="severity-{{ alert.severity|lower }}">
+                            <td><span class="severity-badge">{{ alert.severity }}</span></td>
+                            <td>{{ "%.2f"|format(alert.confidence) }}</td>
+                            <td>{{ alert.num_detections }}</td>
+                            <td>{{ alert.timestamp }}</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="4" class="no-alerts">No alerts found</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
