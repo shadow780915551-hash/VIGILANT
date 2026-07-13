@@ -1,53 +1,103 @@
 # Python
+
 __pycache__/
+
 *.py[cod]
+
 *.pyo
+
 *.pyd
+
 *.egg-info/
+
 .pytest_cache/
+
 .mypy_cache/
 
+
+
 # Virtual Environment
+
 .venv/
+
 venv/
+
 env/
 
+
+
 # Environment Variables
+
 .env
 
+
+
 # Dataset
+
 dataset/
+
 datasets/
+
 data/
 
+
+
 # Model Weights
+
 *.pt
+
 *.pth
+
 *.onnx
+
 *.ckpt
 
+
+
 # Logs
+
 logs/
+
 *.log
 
+
+
 # IDE
+
 .vscode/
+
 .idea/
 
+
+
 # OS
+
 .DS_Store
+
 Thumbs.db
 
+
+
 # Build
+
 dist/
+
 build/
 
+
+
 # Temporary
+
 *.tmp
 
+
+
 # Additional folders to exclude
+
 evidence/
+
 models/
+
 snapshots/
-ML/
+
 runs/
