@@ -1,0 +1,6 @@
+path: c:\Users\Asus\OneDrive\Desktop\Projects\Final Year Project\ML\yolo_dataset
+train: train/images
+val: val/images
+test: test/images
+names:
+  0: person
