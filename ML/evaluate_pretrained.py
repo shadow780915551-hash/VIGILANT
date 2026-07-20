@@ -3,7 +3,6 @@ import os
 import json
 import numpy as np
 import matplotlib.pyplot as plt
-import seaborn as sns
 from sklearn.metrics import roc_curve, auc, confusion_matrix
 from ultralytics import YOLO
 import cv2
@@ -138,16 +137,28 @@ def main():
     # 1. Confusion Matrix
     cm = confusion_matrix(y_true_class, y_pred_class)
     
-    # Plot Confusion Matrix
+    # Plot Confusion Matrix using matplotlib
     plt.figure(figsize=(10, 8))
-    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
-                xticklabels=['No Person', 'Person'],
-                yticklabels=['No Person', 'Person'],
-                annot_kws={"size": 16})
+    plt.imshow(cm, interpolation='nearest', cmap=plt.cm.Blues)
     plt.title('Confusion Matrix', fontsize=16, pad=20)
+    plt.colorbar()
+    
+    # Add labels
+    tick_marks = np.arange(2)
+    plt.xticks(tick_marks, ['No Person', 'Person'], fontsize=12)
+    plt.yticks(tick_marks, ['No Person', 'Person'], fontsize=12)
     plt.ylabel('True Label', fontsize=14)
     plt.xlabel('Predicted Label', fontsize=14)
-    plt.tick_params(axis='both', labelsize=12)
+    
+    # Add text annotations
+    thresh = cm.max() / 2.
+    for i in range(cm.shape[0]):
+        for j in range(cm.shape[1]):
+            plt.text(j, i, format(cm[i, j], 'd'),
+                    horizontalalignment="center",
+                    color="white" if cm[i, j] > thresh else "black",
+                    fontsize=16)
+    
     cm_plot_path = os.path.join(ML_DIR, "confusion_matrix_pretrained_yolov8n.png")
     plt.tight_layout()
     plt.savefig(cm_plot_path, dpi=300)
