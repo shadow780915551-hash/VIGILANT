@@ -1,0 +1,24 @@
+{
+  "test_accuracy": 0.9133333333333333,
+  "mAP50": 0.7279249024435122,
+  "mAP50-95": 0.5040906357158429,
+  "precision": 0.767063628437195,
+  "recall": 0.6574685062987402,
+  "f1_score_map_based": 0.7080502653851048,
+  "f1_score_cm_based": 0.9103448275862068,
+  "confusion_matrix": [
+    [
+      355,
+      3
+    ],
+    [
+      62,
+      330
+    ]
+  ],
+  "true_negative": 355,
+  "false_positive": 3,
+  "false_negative": 62,
+  "true_positive": 330,
+  "auc": 0.862057996354106
+}
