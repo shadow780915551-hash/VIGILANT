@@ -206,7 +206,7 @@ def train_model(yaml_path, epochs, model_name):
         dropout=0.1,          # Dropout for regularization
         # Hardware optimization
         workers=8,            # Number of worker threads
-        device=0,            # Use GPU if available
+        device='cpu',         # Use CPU (CUDA not available)
         verbose=True          # Verbose output
     )
     best_model_path = os.path.join(ML_DIR, "training", model_name, "weights", "best.pt")
