@@ -101,3 +101,11 @@ models/
 snapshots/
 
 runs/
+
+# ML backup folders
+ML/yolo_dataset_backup/
+ML/training_backup/
+ML/yolo_temp_backup/
+ML/dataset.yaml.backup
+ML/Precision_Recall_Curve.png.backup
+ML/Recall_Curve.png.backup
