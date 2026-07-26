@@ -109,3 +109,8 @@ ML/yolo_temp_backup/
 ML/dataset.yaml.backup
 ML/Precision_Recall_Curve.png.backup
 ML/Recall_Curve.png.backup
+
+# ML temporary dataset files
+ML/yolo_dataset/
+ML/yolo_temp/
+ML/dataset.yaml
