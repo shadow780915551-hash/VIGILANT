@@ -1,21 +1,21 @@
 {
   "model": "yolov8s_50epochs_enhanced",
   "yolo_val_metrics": {
-    "mAP50": 0.8474115115670556,
-    "mAP50-95": 0.5843004259411031,
-    "precision": 0.8450264871789898,
-    "recall": 0.7457824040626416
+    "mAP50": 0.7884936501428645,
+    "mAP50-95": 0.5202471122896213,
+    "precision": 0.799770618257897,
+    "recall": 0.713631156930126
   },
   "val_set": {
-    "precision": 0.9010054137664346,
-    "recall": 0.6988602279544092,
-    "f1_score": 0.7871621621621622,
-    "avg_iou": 0.8328945636749268,
-    "true_positives": 1165,
-    "false_positives": 128,
-    "false_negatives": 502,
-    "total_gt_boxes": 1667,
-    "total_pred_boxes": 1293
+    "precision": 0.8817500985415846,
+    "recall": 0.6406071019473081,
+    "f1_score": 0.7420799469232046,
+    "avg_iou": 0.8230996131896973,
+    "true_positives": 2237,
+    "false_positives": 300,
+    "false_negatives": 1255,
+    "total_gt_boxes": 3492,
+    "total_pred_boxes": 2537
   },
   "test_set": {
     "precision": 0.9143598615916955,
