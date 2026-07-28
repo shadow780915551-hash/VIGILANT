@@ -3,6 +3,10 @@
 
 A real-time AI-powered surveillance system that detects intrusions using YOLOv8, generates alerts, saves evidence, and displays everything on a modern dashboard.
 
+## Live Demo
+
+🚀 **Deployed Application**: https://vigilant-myekjhcbc9qnxwqgz8nkma.streamlit.app/
+
 ## Features
 
 - **Live Webcam Feed**: Real-time video streaming with object detection
