@@ -1,3 +1,42 @@
+import importlib.metadata
+import subprocess
+import sys
+
+CV2_HEADLESS_PIN = "opencv-python-headless==5.0.0.93"
+
+def _ensure_only_headless_opencv():
+    gui_names = ["opencv-python", "opencv-contrib-python"]
+    installed_gui = []
+    for name in gui_names:
+        try:
+            importlib.metadata.version(name)
+            installed_gui.append(name)
+        except importlib.metadata.PackageNotFoundError:
+            pass
+    try:
+        importlib.metadata.version("opencv-python-headless")
+        headless_ok = True
+    except importlib.metadata.PackageNotFoundError:
+        headless_ok = False
+
+    if installed_gui or not headless_ok:
+        to_remove = installed_gui + (["opencv-python-headless"] if headless_ok else [])
+        subprocess.run(
+            [sys.executable, "-m", "pip", "uninstall", "-y", *to_remove],
+            check=False, capture_output=True,
+        )
+        subprocess.run(
+            [sys.executable, "-m", "pip", "install", "--no-deps",
+             "--disable-pip-version-check", CV2_HEADLESS_PIN],
+            check=False, capture_output=True,
+        )
+        importlib.invalidate_caches()
+        for mod_name in list(sys.modules):
+            if mod_name == "cv2" or mod_name.startswith("cv2."):
+                del sys.modules[mod_name]
+
+_ensure_only_headless_opencv()
+
 import streamlit as st
 import cv2
 import time
