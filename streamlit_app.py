@@ -230,7 +230,7 @@ with col1:
                                 break
                             annotated = process_frame(frame, detector, confidence, cooldown)
                             annotated_rgb = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
-                            frame_placeholder.image(annotated_rgb, channels="RGB", use_column_width=True)
+                            frame_placeholder.image(annotated_rgb, channels="RGB", width='stretch')
                             time.sleep(0.1)
                         cap.release()
             else:
@@ -243,7 +243,7 @@ with col1:
                     img = cv2.imdecode(file_bytes, 1)
                     annotated = process_frame(img, detector, confidence, cooldown)
                     annotated_rgb = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
-                    st.image(annotated_rgb, channels="RGB", use_column_width=True, caption="Processed Image")
+                    st.image(annotated_rgb, channels="RGB", width='stretch', caption="Processed Image")
                 else:
                     temp_path = os.path.join(EVIDENCE_DIR, "temp_video.mp4")
                     with open(temp_path, "wb") as f:
@@ -257,7 +257,7 @@ with col1:
                             break
                         annotated = process_frame(frame, detector, confidence, cooldown)
                         annotated_rgb = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
-                        frame_placeholder.image(annotated_rgb, channels="RGB", use_column_width=True)
+                        frame_placeholder.image(annotated_rgb, channels="RGB", width='stretch')
                         time.sleep(0.03)
                     cap.release()
                     if os.path.exists(temp_path):
@@ -301,7 +301,7 @@ if st.session_state.alerts:
             'Snapshot': alert.get('snapshot_path', 'N/A')
         })
     df = pd.DataFrame(alert_data)
-    st.dataframe(df, use_container_width=True)
+    st.dataframe(df, width='stretch')
     csv = df.to_csv(index=False)
     st.download_button(
         label="Download Alerts CSV",
