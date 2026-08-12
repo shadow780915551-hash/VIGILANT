@@ -1,4 +1,4 @@
-path: C:\Users\Asus\OneDrive\Desktop\Projects\Final Year Project\ML\yolo_dataset
+path: C:\Users\Asus\Desktop\Final Year project\VIGILANT_cloned\ML\yolo_dataset
 train: train/images
 val: val/images
 test: test/images
