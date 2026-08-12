@@ -3,17 +3,21 @@ import os
 import json
 from datetime import datetime
 import pandas as pd
+import time as time_module
 
 # Try to import required libraries with fallback
+OPENCV_AVAILABLE = False
+cv2 = None
+np = None
+Image = None
+
 try:
     import cv2
     import numpy as np
     from PIL import Image
-    import time
     OPENCV_AVAILABLE = True
-except ImportError as e:
+except Exception as e:
     st.warning(f"OpenCV or dependencies not available: {e}. Running in demo mode without image processing.")
-    OPENCV_AVAILABLE = False
     # Import basic numpy if available
     try:
         import numpy as np
@@ -149,7 +153,7 @@ def process_frame(frame, detector, confidence, cooldown):
                 in_zone = True
                 break
         if in_zone:
-            current_time = time.time()
+            current_time = time_module.time()
             if current_time - st.session_state.last_alert_time > cooldown:
                 severity = calculate_severity(max_conf, num_detections, 0)
                 snapshot_path = save_snapshot(annotated_frame)
@@ -172,12 +176,23 @@ st.markdown("---")
 
 with st.sidebar:
     st.header("Controls")
-    mode = st.radio("Input Mode", ["📷 Live Camera", "📁 Upload Media"], index=1)
+    
+    # Show OpenCV status
+    if not OPENCV_AVAILABLE:
+        st.error("⚠️ OpenCV not available - Limited functionality")
+        st.info("Upload mode will work, but live camera and detection are disabled")
+        mode = st.radio("Input Mode", ["� Upload Media"], index=0)
+    else:
+        mode = st.radio("Input Mode", ["�📷 Live Camera", "📁 Upload Media"], index=1)
+    
     if mode == "📷 Live Camera":
-        if st.button("▶️ Start Camera", key="start"):
-            st.session_state.camera_active = True
-        if st.button("⏹️ Stop Camera", key="stop"):
-            st.session_state.camera_active = False
+        if not OPENCV_AVAILABLE:
+            st.warning("Live camera requires OpenCV - disabled in demo mode")
+        else:
+            if st.button("▶️ Start Camera", key="start"):
+                st.session_state.camera_active = True
+            if st.button("⏹️ Stop Camera", key="stop"):
+                st.session_state.camera_active = False
     st.markdown("---")
     st.header("Settings")
     confidence = st.slider("Confidence Threshold", 0.0, 1.0, CONFIDENCE_THRESHOLD, 0.05)
@@ -201,25 +216,20 @@ with col1:
     detector = load_detector()
     
     if not OPENCV_AVAILABLE:
-        st.warning("🚫 OpenCV not fully available - some features may be limited")
-        st.info("The surveillance system UI is available but object detection is disabled.")
+        st.warning("🚫 OpenCV not available - Running in demo mode")
+        st.info("Upload functionality works, but image processing and camera are disabled.")
         
-        if mode == "📷 Live Camera":
-            st.info("Live camera may not work properly without OpenCV. Use 'Upload Media' mode for better experience.")
-            if st.session_state.camera_active:
-                st.error("Camera requires OpenCV to function properly")
-                st.session_state.camera_active = False
-        else:
-            uploaded = st.file_uploader("Upload an image or video", type=["jpg", "jpeg", "png", "mp4", "avi", "mov"])
-            if uploaded is not None:
-                st.info("Demo mode: Displaying file without processing")
-                if uploaded.type.startswith("image"):
-                    st.image(uploaded, caption="Uploaded Image (Demo Mode)")
-                else:
-                    st.video(uploaded)
-                st.warning("Image/video processing requires OpenCV to be properly installed.")
+        # Only show upload option when OpenCV is not available
+        uploaded = st.file_uploader("Upload an image or video", type=["jpg", "jpeg", "png", "mp4", "avi", "mov"])
+        if uploaded is not None:
+            st.info("Demo mode: Displaying file without processing")
+            if uploaded.type.startswith("image"):
+                st.image(uploaded, caption="Uploaded Image (Demo Mode)")
             else:
-                st.info("Upload an image or video file to test the surveillance system (demo mode).")
+                st.video(uploaded)
+            st.warning("Image/video processing requires OpenCV to be properly installed.")
+        else:
+            st.info("Upload an image or video file to test the surveillance system (demo mode).")
     elif detector is None:
         st.error("Failed to load YOLO model. Check model path or internet connection.")
         st.info("The system will run in basic mode without object detection.")
@@ -245,7 +255,7 @@ with col1:
                                     st.error("Failed to read frame")
                                     break
                                 frame_placeholder.image(frame, channels="BGR", width='stretch')
-                                time.sleep(0.1)
+                                time_module.sleep(0.1)
                             cap.release()
                 except Exception as e:
                     st.error(f"Camera error: {e}")
@@ -292,7 +302,7 @@ with col1:
                                 except Exception as e:
                                     st.error(f"Frame processing error: {e}")
                                     frame_placeholder.image(frame, channels="BGR", width='stretch')
-                                time.sleep(0.1)
+                                time_module.sleep(0.1)
                             cap.release()
                 except Exception as e:
                     st.error(f"Camera initialization error: {e}")
@@ -322,7 +332,7 @@ with col1:
                         annotated = process_frame(frame, detector, confidence, cooldown)
                         annotated_rgb = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
                         frame_placeholder.image(annotated_rgb, channels="RGB", width='stretch')
-                        time.sleep(0.03)
+                        time_module.sleep(0.03)
                     cap.release()
                     if os.path.exists(temp_path):
                         os.remove(temp_path)
