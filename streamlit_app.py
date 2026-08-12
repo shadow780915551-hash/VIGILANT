@@ -1,17 +1,3 @@
-import importlib.metadata
-import subprocess
-import sys
-
-try:
-    importlib.metadata.version("opencv-python")
-    subprocess.run(
-        [sys.executable, "-m", "pip", "uninstall", "-y",
-         "opencv-python", "opencv-contrib-python"],
-        check=False, capture_output=True,
-    )
-except importlib.metadata.PackageNotFoundError:
-    pass
-
 import streamlit as st
 import cv2
 import time
