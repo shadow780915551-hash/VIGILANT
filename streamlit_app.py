@@ -4,7 +4,7 @@ import json
 from datetime import datetime
 import pandas as pd
 
-# Try to import OpenCV with fallback
+# Try to import required libraries with fallback
 try:
     import cv2
     import numpy as np
@@ -12,11 +12,26 @@ try:
     import time
     OPENCV_AVAILABLE = True
 except ImportError as e:
-    st.warning(f"OpenCV not available: {e}. Running in demo mode without image processing.")
+    st.warning(f"OpenCV or dependencies not available: {e}. Running in demo mode without image processing.")
     OPENCV_AVAILABLE = False
+    # Import basic numpy if available
+    try:
+        import numpy as np
+    except ImportError:
+        import sys
+        import types
+        np = types.ModuleType('numpy')
+        np.array = lambda x: x
+        np.int32 = int
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-MODEL_PATH = os.path.join(BASE_DIR, "models", "yolov8n.pt")
+# Try multiple possible model paths
+MODEL_PATHS = [
+    os.path.join(BASE_DIR, "models", "yolov8n.pt"),
+    os.path.join(BASE_DIR, "yolov8n.pt"),
+    os.path.join(BASE_DIR, "yolov8s.pt")
+]
+MODEL_PATH = MODEL_PATHS[0]  # Default to first path
 SNAPSHOT_DIR = os.path.join(BASE_DIR, "snapshots")
 EVIDENCE_DIR = os.path.join(BASE_DIR, "evidence")
 LOG_DIR = os.path.join(BASE_DIR, "logs")
@@ -55,20 +70,24 @@ def load_detector():
     if not OPENCV_AVAILABLE:
         st.warning("OpenCV not available. Running in demo mode without object detection.")
         return None
-    if not os.path.exists(MODEL_PATH):
-        st.warning(f"Model file not found at: {MODEL_PATH}")
-        st.info("Downloading default yolov8n.pt for demo use...")
-        try:
-            from ultralytics import YOLO
-            return YOLO("yolov8n.pt")
-        except Exception as e:
-            st.error(f"Could not download default model: {e}")
-            return None
+    
+    # Try to find model in multiple locations
+    for model_path in MODEL_PATHS:
+        if os.path.exists(model_path):
+            try:
+                from ultralytics import YOLO
+                return YOLO(model_path)
+            except Exception as e:
+                st.warning(f"Failed to load model from {model_path}: {e}")
+                continue
+    
+    # If no local model found, try downloading
+    st.warning("No local model found. Downloading default yolov8n.pt...")
     try:
         from ultralytics import YOLO
-        return YOLO(MODEL_PATH)
+        return YOLO("yolov8n.pt")
     except Exception as e:
-        st.error(f"Error loading model: {e}")
+        st.error(f"Could not download default model: {e}")
         return None
 
 def is_point_in_polygon(point, polygon):
@@ -182,11 +201,14 @@ with col1:
     detector = load_detector()
     
     if not OPENCV_AVAILABLE:
-        st.warning("🚫 OpenCV not available - running in demo mode without image processing")
+        st.warning("🚫 OpenCV not fully available - some features may be limited")
         st.info("The surveillance system UI is available but object detection is disabled.")
         
         if mode == "📷 Live Camera":
-            st.info("Live camera requires OpenCV. Please use 'Upload Media' mode to see demo alerts.")
+            st.info("Live camera may not work properly without OpenCV. Use 'Upload Media' mode for better experience.")
+            if st.session_state.camera_active:
+                st.error("Camera requires OpenCV to function properly")
+                st.session_state.camera_active = False
         else:
             uploaded = st.file_uploader("Upload an image or video", type=["jpg", "jpeg", "png", "mp4", "avi", "mov"])
             if uploaded is not None:
@@ -204,26 +226,30 @@ with col1:
         
         if mode == "📷 Live Camera":
             if st.session_state.camera_active:
-                cap = cv2.VideoCapture(0)
-                if not cap.isOpened():
-                    st.error("Failed to open camera. No physical camera detected.")
-                    st.info("Try 'Upload Media' mode instead for Streamlit Cloud deployment.")
-                    st.session_state.camera_active = False
-                else:
-                    frame_placeholder = st.empty()
-                    stop_button = st.button("Stop Camera in Main View")
-                    if stop_button:
+                try:
+                    cap = cv2.VideoCapture(0)
+                    if not cap.isOpened():
+                        st.error("Failed to open camera. No physical camera detected.")
+                        st.info("Try 'Upload Media' mode instead for Streamlit Cloud deployment.")
                         st.session_state.camera_active = False
-                        cap.release()
                     else:
-                        while st.session_state.camera_active:
-                            ret, frame = cap.read()
-                            if not ret:
-                                st.error("Failed to read frame")
-                                break
-                            frame_placeholder.image(frame, channels="BGR", width='stretch')
-                            time.sleep(0.1)
-                        cap.release()
+                        frame_placeholder = st.empty()
+                        stop_button = st.button("Stop Camera in Main View")
+                        if stop_button:
+                            st.session_state.camera_active = False
+                            cap.release()
+                        else:
+                            while st.session_state.camera_active:
+                                ret, frame = cap.read()
+                                if not ret:
+                                    st.error("Failed to read frame")
+                                    break
+                                frame_placeholder.image(frame, channels="BGR", width='stretch')
+                                time.sleep(0.1)
+                            cap.release()
+                except Exception as e:
+                    st.error(f"Camera error: {e}")
+                    st.session_state.camera_active = False
             else:
                 st.info("Click 'Start Camera' in the sidebar to begin live surveillance")
         else:
@@ -241,28 +267,36 @@ with col1:
     else:
         if mode == "📷 Live Camera":
             if st.session_state.camera_active:
-                cap = cv2.VideoCapture(0)
-                if not cap.isOpened():
-                    st.error("Failed to open camera. No physical camera detected.")
-                    st.info("Try 'Upload Media' mode instead for Streamlit Cloud deployment.")
-                    st.session_state.camera_active = False
-                else:
-                    frame_placeholder = st.empty()
-                    stop_button = st.button("Stop Camera in Main View")
-                    if stop_button:
+                try:
+                    cap = cv2.VideoCapture(0)
+                    if not cap.isOpened():
+                        st.error("Failed to open camera. No physical camera detected.")
+                        st.info("Try 'Upload Media' mode instead for Streamlit Cloud deployment.")
                         st.session_state.camera_active = False
-                        cap.release()
                     else:
-                        while st.session_state.camera_active:
-                            ret, frame = cap.read()
-                            if not ret:
-                                st.error("Failed to read frame")
-                                break
-                            annotated = process_frame(frame, detector, confidence, cooldown)
-                            annotated_rgb = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
-                            frame_placeholder.image(annotated_rgb, channels="RGB", width='stretch')
-                            time.sleep(0.1)
-                        cap.release()
+                        frame_placeholder = st.empty()
+                        stop_button = st.button("Stop Camera in Main View")
+                        if stop_button:
+                            st.session_state.camera_active = False
+                            cap.release()
+                        else:
+                            while st.session_state.camera_active:
+                                ret, frame = cap.read()
+                                if not ret:
+                                    st.error("Failed to read frame")
+                                    break
+                                try:
+                                    annotated = process_frame(frame, detector, confidence, cooldown)
+                                    annotated_rgb = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
+                                    frame_placeholder.image(annotated_rgb, channels="RGB", width='stretch')
+                                except Exception as e:
+                                    st.error(f"Frame processing error: {e}")
+                                    frame_placeholder.image(frame, channels="BGR", width='stretch')
+                                time.sleep(0.1)
+                            cap.release()
+                except Exception as e:
+                    st.error(f"Camera initialization error: {e}")
+                    st.session_state.camera_active = False
             else:
                 st.info("Click 'Start Camera' in the sidebar to begin live surveillance")
         else:
