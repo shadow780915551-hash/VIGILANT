@@ -1,51 +1,19 @@
-import importlib.metadata
-import subprocess
-import sys
-
-CV2_HEADLESS_PIN = "opencv-python-headless==5.0.0.93"
-
-def _ensure_only_headless_opencv():
-    gui_names = ["opencv-python", "opencv-contrib-python"]
-    installed_gui = []
-    for name in gui_names:
-        try:
-            importlib.metadata.version(name)
-            installed_gui.append(name)
-        except importlib.metadata.PackageNotFoundError:
-            pass
-    try:
-        importlib.metadata.version("opencv-python-headless")
-        headless_ok = True
-    except importlib.metadata.PackageNotFoundError:
-        headless_ok = False
-
-    if installed_gui or not headless_ok:
-        to_remove = installed_gui + (["opencv-python-headless"] if headless_ok else [])
-        subprocess.run(
-            [sys.executable, "-m", "pip", "uninstall", "-y", *to_remove],
-            check=False, capture_output=True,
-        )
-        subprocess.run(
-            [sys.executable, "-m", "pip", "install", "--no-deps",
-             "--disable-pip-version-check", CV2_HEADLESS_PIN],
-            check=False, capture_output=True,
-        )
-        importlib.invalidate_caches()
-        for mod_name in list(sys.modules):
-            if mod_name == "cv2" or mod_name.startswith("cv2."):
-                del sys.modules[mod_name]
-
-_ensure_only_headless_opencv()
-
 import streamlit as st
-import cv2
-import time
-import numpy as np
-import pandas as pd
-from PIL import Image
 import os
 import json
 from datetime import datetime
+import pandas as pd
+
+# Try to import OpenCV with fallback
+try:
+    import cv2
+    import numpy as np
+    from PIL import Image
+    import time
+    OPENCV_AVAILABLE = True
+except ImportError as e:
+    st.warning(f"OpenCV not available: {e}. Running in demo mode without image processing.")
+    OPENCV_AVAILABLE = False
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_PATH = os.path.join(BASE_DIR, "models", "yolov8n.pt")
@@ -84,12 +52,14 @@ def save_alerts(alerts):
 
 @st.cache_resource
 def load_detector():
+    if not OPENCV_AVAILABLE:
+        st.warning("OpenCV not available. Running in demo mode without object detection.")
+        return None
     if not os.path.exists(MODEL_PATH):
         st.warning(f"Model file not found at: {MODEL_PATH}")
-        st.info("Please train the model first or place yolov8n.pt in the models/ folder.")
+        st.info("Downloading default yolov8n.pt for demo use...")
         try:
             from ultralytics import YOLO
-            st.info("Downloading default yolov8n.pt for demo use...")
             return YOLO("yolov8n.pt")
         except Exception as e:
             st.error(f"Could not download default model: {e}")
@@ -132,6 +102,8 @@ def calculate_severity(confidence, num_detections, time_in_zone):
         return "HIGH"
 
 def save_snapshot(frame):
+    if not OPENCV_AVAILABLE:
+        return None
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"alert_{timestamp}.jpg"
     filepath = os.path.join(SNAPSHOT_DIR, filename)
@@ -139,6 +111,8 @@ def save_snapshot(frame):
     return filepath
 
 def process_frame(frame, detector, confidence, cooldown):
+    if not OPENCV_AVAILABLE or detector is None:
+        return frame
     results = detector(frame, conf=confidence, classes=[0])
     annotated_frame = results[0].plot()
     points = np.array(RESTRICTED_ZONE, np.int32)
@@ -206,8 +180,64 @@ col1, col2 = st.columns([2, 1])
 with col1:
     st.header("Surveillance Feed")
     detector = load_detector()
-    if detector is None:
+    
+    if not OPENCV_AVAILABLE:
+        st.warning("🚫 OpenCV not available - running in demo mode without image processing")
+        st.info("The surveillance system UI is available but object detection is disabled.")
+        
+        if mode == "📷 Live Camera":
+            st.info("Live camera requires OpenCV. Please use 'Upload Media' mode to see demo alerts.")
+        else:
+            uploaded = st.file_uploader("Upload an image or video", type=["jpg", "jpeg", "png", "mp4", "avi", "mov"])
+            if uploaded is not None:
+                st.info("Demo mode: Displaying file without processing")
+                if uploaded.type.startswith("image"):
+                    st.image(uploaded, caption="Uploaded Image (Demo Mode)")
+                else:
+                    st.video(uploaded)
+                st.warning("Image/video processing requires OpenCV to be properly installed.")
+            else:
+                st.info("Upload an image or video file to test the surveillance system (demo mode).")
+    elif detector is None:
         st.error("Failed to load YOLO model. Check model path or internet connection.")
+        st.info("The system will run in basic mode without object detection.")
+        
+        if mode == "📷 Live Camera":
+            if st.session_state.camera_active:
+                cap = cv2.VideoCapture(0)
+                if not cap.isOpened():
+                    st.error("Failed to open camera. No physical camera detected.")
+                    st.info("Try 'Upload Media' mode instead for Streamlit Cloud deployment.")
+                    st.session_state.camera_active = False
+                else:
+                    frame_placeholder = st.empty()
+                    stop_button = st.button("Stop Camera in Main View")
+                    if stop_button:
+                        st.session_state.camera_active = False
+                        cap.release()
+                    else:
+                        while st.session_state.camera_active:
+                            ret, frame = cap.read()
+                            if not ret:
+                                st.error("Failed to read frame")
+                                break
+                            frame_placeholder.image(frame, channels="BGR", width='stretch')
+                            time.sleep(0.1)
+                        cap.release()
+            else:
+                st.info("Click 'Start Camera' in the sidebar to begin live surveillance")
+        else:
+            uploaded = st.file_uploader("Upload an image or video", type=["jpg", "jpeg", "png", "mp4", "avi", "mov"])
+            if uploaded is not None:
+                st.info("Basic mode: Displaying file without object detection")
+                if uploaded.type.startswith("image"):
+                    file_bytes = np.asarray(bytearray(uploaded.read()), dtype=np.uint8)
+                    img = cv2.imdecode(file_bytes, 1)
+                    st.image(img, channels="BGR", width='stretch', caption="Uploaded Image (Basic Mode)")
+                else:
+                    st.video(uploaded)
+            else:
+                st.info("Upload an image or video file to test the surveillance system (basic mode).")
     else:
         if mode == "📷 Live Camera":
             if st.session_state.camera_active:
@@ -267,6 +297,28 @@ with col1:
 
 with col2:
     st.header("Recent Alerts")
+    
+    # Add demo alerts if in demo mode and no alerts exist
+    if not OPENCV_AVAILABLE and not st.session_state.alerts:
+        st.info("Demo mode: Sample alerts shown below")
+        demo_alerts = [
+            {
+                "severity": "HIGH",
+                "confidence": 0.95,
+                "num_detections": 3,
+                "snapshot_path": None,
+                "timestamp": datetime.now().isoformat()
+            },
+            {
+                "severity": "MEDIUM", 
+                "confidence": 0.78,
+                "num_detections": 1,
+                "snapshot_path": None,
+                "timestamp": (datetime.now().replace(hour=datetime.now().hour-1)).isoformat()
+            }
+        ]
+        st.session_state.alerts = demo_alerts
+    
     if st.session_state.alerts:
         recent_alerts = st.session_state.alerts[-10:]
         for alert in reversed(recent_alerts):
@@ -285,6 +337,8 @@ with col2:
                 snapshot_path = alert.get('snapshot_path')
                 if snapshot_path and os.path.exists(snapshot_path):
                     st.image(snapshot_path, caption="Alert Snapshot")
+                elif not OPENCV_AVAILABLE:
+                    st.info("Demo alert - no snapshot available")
     else:
         st.info("No alerts recorded yet")
 
