@@ -171,6 +171,12 @@ def process_frame(frame, detector, confidence, cooldown):
     return annotated_frame
 
 st.set_page_config(page_title="VIGILANT - AI Surveillance System", layout="wide")
+
+# Demo mode banner
+if not OPENCV_AVAILABLE:
+    st.error("🎭 DEMO MODE - OpenCV not available. Full functionality requires OpenCV installation.")
+    st.info("💡 You can still test the interface, upload files, and see sample alerts!")
+
 st.title("🔒 VIGILANT - AI Surveillance System")
 st.markdown("---")
 
@@ -179,15 +185,15 @@ with st.sidebar:
     
     # Show OpenCV status
     if not OPENCV_AVAILABLE:
-        st.error("⚠️ OpenCV not available - Limited functionality")
-        st.info("Upload mode will work, but live camera and detection are disabled")
-        mode = st.radio("Input Mode", ["� Upload Media"], index=0)
+        st.error("⚠️ DEMO MODE - OpenCV not available")
+        st.info("📁 Upload Media Only (Camera disabled)")
+        mode = "📁 Upload Media"  # Force upload mode in demo
     else:
-        mode = st.radio("Input Mode", ["�📷 Live Camera", "📁 Upload Media"], index=1)
+        mode = st.radio("Input Mode", ["📷 Live Camera", "📁 Upload Media"], index=1)
     
     if mode == "📷 Live Camera":
         if not OPENCV_AVAILABLE:
-            st.warning("Live camera requires OpenCV - disabled in demo mode")
+            st.warning("🚫 Camera requires OpenCV - disabled in demo mode")
         else:
             if st.button("▶️ Start Camera", key="start"):
                 st.session_state.camera_active = True
@@ -216,20 +222,42 @@ with col1:
     detector = load_detector()
     
     if not OPENCV_AVAILABLE:
-        st.warning("🚫 OpenCV not available - Running in demo mode")
-        st.info("Upload functionality works, but image processing and camera are disabled.")
+        st.warning("🚫 OpenCV not available - Running in Demo Mode")
+        st.info("💡 Demo Mode: You can still test the interface and see sample alerts!")
+        
+        # Demo mode instructions
+        st.markdown("""
+        **Demo Mode Features:**
+        - ✅ Upload and view images/videos 
+        - ✅ See sample security alerts
+        - ✅ Test the interface UI
+        - ❌ Live camera disabled
+        - ❌ Object detection disabled
+        """)
         
         # Only show upload option when OpenCV is not available
-        uploaded = st.file_uploader("Upload an image or video", type=["jpg", "jpeg", "png", "mp4", "avi", "mov"])
+        uploaded = st.file_uploader("📤 Upload an image or video to test", type=["jpg", "jpeg", "png", "mp4", "avi", "mov"])
         if uploaded is not None:
-            st.info("Demo mode: Displaying file without processing")
+            st.success("✅ File uploaded successfully!")
             if uploaded.type.startswith("image"):
-                st.image(uploaded, caption="Uploaded Image (Demo Mode)")
+                st.image(uploaded, caption="Uploaded Image (Demo Mode - No Processing)")
             else:
                 st.video(uploaded)
-            st.warning("Image/video processing requires OpenCV to be properly installed.")
+            st.info("📝 In full mode, this would show object detection with bounding boxes.")
         else:
-            st.info("Upload an image or video file to test the surveillance system (demo mode).")
+            st.info("👆 Upload any image or video to see how the interface works.")
+        
+        # Show a sample demo alert
+        st.markdown("---")
+        st.subheader("🔔 Sample Demo Alert")
+        st.info("In demo mode, you can see how alerts would appear:")
+        col_demo1, col_demo2, col_demo3 = st.columns(3)
+        with col_demo1:
+            st.metric("Severity", "🔴 HIGH")
+        with col_demo2:
+            st.metric("Confidence", "95%")
+        with col_demo3:
+            st.metric("Persons", "3")
     elif detector is None:
         st.error("Failed to load YOLO model. Check model path or internet connection.")
         st.info("The system will run in basic mode without object detection.")
@@ -344,7 +372,7 @@ with col2:
     
     # Add demo alerts if in demo mode and no alerts exist
     if not OPENCV_AVAILABLE and not st.session_state.alerts:
-        st.info("Demo mode: Sample alerts shown below")
+        st.info("🎭 Demo Mode: Showing sample alerts")
         demo_alerts = [
             {
                 "severity": "HIGH",
@@ -359,6 +387,13 @@ with col2:
                 "num_detections": 1,
                 "snapshot_path": None,
                 "timestamp": (datetime.now().replace(hour=datetime.now().hour-1)).isoformat()
+            },
+            {
+                "severity": "LOW",
+                "confidence": 0.65,
+                "num_detections": 1,
+                "snapshot_path": None,
+                "timestamp": (datetime.now().replace(hour=datetime.now().hour-2)).isoformat()
             }
         ]
         st.session_state.alerts = demo_alerts
