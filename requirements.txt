@@ -1,7 +1,9 @@
 streamlit==1.61.1
 fastapi
 uvicorn
-opencv-python-headless==5.0.0.93
+# Use the headless build for Streamlit/Linux deployments. It avoids GUI-library
+# dependencies while retaining video and image processing support.
+opencv-python-headless>=4.10,<5
 ultralytics==8.4.118
 python-multipart
 jinja2
