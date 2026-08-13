@@ -180,11 +180,6 @@ with st.sidebar:
     else:
         mode = st.radio("Input Mode", ["📷 Live Camera", "📁 Upload Media"], index=1)
     
-    if mode == "📷 Live Camera":
-        if st.button("▶️ Start Camera", key="start"):
-            st.session_state.camera_active = True
-        if st.button("⏹️ Stop Camera", key="stop"):
-            st.session_state.camera_active = False
     st.markdown("---")
     st.header("Settings")
     confidence = st.slider("Confidence Threshold", 0.0, 1.0, CONFIDENCE_THRESHOLD, 0.05)
@@ -226,31 +221,19 @@ with col1:
             st.error("Failed to load YOLO model. Check model path or internet connection.")
         else:
             if mode == "📷 Live Camera":
-                if st.session_state.camera_active:
-                    cap = cv2.VideoCapture(0)
-                    if not cap.isOpened():
-                        st.error("Failed to open camera. No physical camera detected.")
-                        st.info("Try 'Upload Media' mode instead for Streamlit Cloud deployment.")
-                        st.session_state.camera_active = False
+                st.caption("Use your browser camera to capture a frame for surveillance analysis.")
+                camera_image = st.camera_input("Camera", key="browser_camera")
+                if camera_image is not None:
+                    file_bytes = np.frombuffer(camera_image.getvalue(), dtype=np.uint8)
+                    frame = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+                    if frame is None:
+                        st.error("Could not read the captured camera image. Please try again.")
                     else:
-                        frame_placeholder = st.empty()
-                        stop_button = st.button("Stop Camera in Main View")
-                        if stop_button:
-                            st.session_state.camera_active = False
-                            cap.release()
-                        else:
-                            while st.session_state.camera_active:
-                                ret, frame = cap.read()
-                                if not ret:
-                                    st.error("Failed to read frame")
-                                    break
-                                annotated = process_frame(frame, detector, confidence, cooldown)
-                                annotated_rgb = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
-                                frame_placeholder.image(annotated_rgb, channels="RGB", width='stretch')
-                                time.sleep(0.1)
-                            cap.release()
+                        annotated = process_frame(frame, detector, confidence, cooldown)
+                        annotated_rgb = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
+                        st.image(annotated_rgb, channels="RGB", width='stretch', caption="Processed Camera Capture")
                 else:
-                    st.info("Click 'Start Camera' in the sidebar to begin live surveillance")
+                    st.info("Open the browser camera, allow permission, then capture a frame to analyze it.")
             else:
                 uploaded = st.file_uploader("Upload an image or video", type=["jpg", "jpeg", "png", "mp4", "avi", "mov"])
                 if uploaded is not None:
