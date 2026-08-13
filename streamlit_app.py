@@ -1,51 +1,31 @@
-import importlib.metadata
-import subprocess
-import sys
-
-CV2_HEADLESS_PIN = "opencv-python-headless==5.0.0.93"
-
-def _ensure_only_headless_opencv():
-    gui_names = ["opencv-python", "opencv-contrib-python"]
-    installed_gui = []
-    for name in gui_names:
-        try:
-            importlib.metadata.version(name)
-            installed_gui.append(name)
-        except importlib.metadata.PackageNotFoundError:
-            pass
-    try:
-        importlib.metadata.version("opencv-python-headless")
-        headless_ok = True
-    except importlib.metadata.PackageNotFoundError:
-        headless_ok = False
-
-    if installed_gui or not headless_ok:
-        to_remove = installed_gui + (["opencv-python-headless"] if headless_ok else [])
-        subprocess.run(
-            [sys.executable, "-m", "pip", "uninstall", "-y", *to_remove],
-            check=False, capture_output=True,
-        )
-        subprocess.run(
-            [sys.executable, "-m", "pip", "install", "--no-deps",
-             "--disable-pip-version-check", CV2_HEADLESS_PIN],
-            check=False, capture_output=True,
-        )
-        importlib.invalidate_caches()
-        for mod_name in list(sys.modules):
-            if mod_name == "cv2" or mod_name.startswith("cv2."):
-                del sys.modules[mod_name]
-
-_ensure_only_headless_opencv()
-
 import streamlit as st
-import cv2
-import time
-import numpy as np
-import pandas as pd
-from PIL import Image
 import os
 import json
 from datetime import datetime
+import pandas as pd
+import time
+import numpy as np
+
+# Try to import OpenCV with graceful fallback
+try:
+    import cv2
+    from PIL import Image
+    OPENCV_AVAILABLE = True
+except Exception as e:
+    st.warning(f"OpenCV not available: {e}. Running in limited mode.")
+    OPENCV_AVAILABLE = False
+    # Create dummy cv2 module to prevent crashes
+    import types
+    cv2 = types.ModuleType('cv2')
+    cv2.VideoCapture = lambda x: None
+    cv2.cvtColor = lambda x, y: x
+    cv2.imdecode = lambda x, y: None
+    cv2.polylines = lambda *args: args[0] if args else None
+    cv2.imwrite = lambda *args: None
+    
+    # Create dummy PIL Image
+    Image = types.ModuleType('PIL.Image')
+    Image.open = lambda x: None
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_PATH = os.path.join(BASE_DIR, "models", "yolov8n.pt")
@@ -84,6 +64,10 @@ def save_alerts(alerts):
 
 @st.cache_resource
 def load_detector():
+    if not OPENCV_AVAILABLE:
+        st.warning("OpenCV not available. Cannot load detector in limited mode.")
+        return None
+        
     if not os.path.exists(MODEL_PATH):
         st.warning(f"Model file not found at: {MODEL_PATH}")
         st.info("Please train the model first or place yolov8n.pt in the models/ folder.")
@@ -132,6 +116,8 @@ def calculate_severity(confidence, num_detections, time_in_zone):
         return "HIGH"
 
 def save_snapshot(frame):
+    if not OPENCV_AVAILABLE:
+        return None
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"alert_{timestamp}.jpg"
     filepath = os.path.join(SNAPSHOT_DIR, filename)
@@ -139,6 +125,8 @@ def save_snapshot(frame):
     return filepath
 
 def process_frame(frame, detector, confidence, cooldown):
+    if not OPENCV_AVAILABLE or detector is None:
+        return frame
     results = detector(frame, conf=confidence, classes=[0])
     annotated_frame = results[0].plot()
     points = np.array(RESTRICTED_ZONE, np.int32)
@@ -174,6 +162,11 @@ def process_frame(frame, detector, confidence, cooldown):
     return annotated_frame
 
 st.set_page_config(page_title="VIGILANT - AI Surveillance System", layout="wide")
+
+if not OPENCV_AVAILABLE:
+    st.error("🚫 LIMITED MODE - OpenCV not available on this system")
+    st.info("💡 Upload functionality works, but camera and detection are disabled")
+
 st.title("🔒 VIGILANT - AI Surveillance System")
 st.markdown("---")
 
@@ -205,68 +198,28 @@ col1, col2 = st.columns([2, 1])
 
 with col1:
     st.header("Surveillance Feed")
-    detector = load_detector()
-    if detector is None:
-        st.error("Failed to load YOLO model. Check model path or internet connection.")
-    else:
-        if mode == "📷 Live Camera":
-            if st.session_state.camera_active:
-                cap = cv2.VideoCapture(0)
-                if not cap.isOpened():
-                    st.error("Failed to open camera. No physical camera detected.")
-                    st.info("Try 'Upload Media' mode instead for Streamlit Cloud deployment.")
-                    st.session_state.camera_active = False
-                else:
-                    frame_placeholder = st.empty()
-                    stop_button = st.button("Stop Camera in Main View")
-                    if stop_button:
-                        st.session_state.camera_active = False
-                        cap.release()
-                    else:
-                        while st.session_state.camera_active:
-                            ret, frame = cap.read()
-                            if not ret:
-                                st.error("Failed to read frame")
-                                break
-                            annotated = process_frame(frame, detector, confidence, cooldown)
-                            annotated_rgb = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
-                            frame_placeholder.image(annotated_rgb, channels="RGB", width='stretch')
-                            time.sleep(0.1)
-                        cap.release()
+    
+    if not OPENCV_AVAILABLE:
+        st.error("🚫 OpenCV not available - Limited Mode")
+        st.info("Upload functionality available, but camera and detection are disabled.")
+        
+        uploaded = st.file_uploader("Upload an image or video", type=["jpg", "jpeg", "png", "mp4", "avi", "mov"])
+        if uploaded is not None:
+            st.success("✅ File uploaded successfully!")
+            if uploaded.type.startswith("image"):
+                st.image(uploaded, caption="Uploaded Image (Limited Mode - No Processing)")
             else:
-                st.info("Click 'Start Camera' in the sidebar to begin live surveillance")
+                st.video(uploaded)
+            st.info("📝 Full processing requires OpenCV installation.")
         else:
-            uploaded = st.file_uploader("Upload an image or video", type=["jpg", "jpeg", "png", "mp4", "avi", "mov"])
-            if uploaded is not None:
-                file_bytes = np.asarray(bytearray(uploaded.read()), dtype=np.uint8)
-                if uploaded.type.startswith("image"):
-                    img = cv2.imdecode(file_bytes, 1)
-                    annotated = process_frame(img, detector, confidence, cooldown)
-                    annotated_rgb = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
-                    st.image(annotated_rgb, channels="RGB", width='stretch', caption="Processed Image")
-                else:
-                    temp_path = os.path.join(EVIDENCE_DIR, "temp_video.mp4")
-                    with open(temp_path, "wb") as f:
-                        f.write(uploaded.getbuffer())
-                    cap = cv2.VideoCapture(temp_path)
-                    frame_placeholder = st.empty()
-                    stop_vid = st.button("Stop Video Processing")
-                    while cap.isOpened() and not stop_vid:
-                        ret, frame = cap.read()
-                        if not ret:
-                            break
-                        annotated = process_frame(frame, detector, confidence, cooldown)
-                        annotated_rgb = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
-                        frame_placeholder.image(annotated_rgb, channels="RGB", width='stretch')
-                        time.sleep(0.03)
-                    cap.release()
-                    if os.path.exists(temp_path):
-                        os.remove(temp_path)
-            else:
-                st.info("Upload an image or video file to test the surveillance system.")
-        if mode == "📷 Live Camera":
-            if st.session_state.camera_active:
-                try:
+            st.info("👆 Upload any image or video to test the interface.")
+    else:
+        detector = load_detector()
+        if detector is None:
+            st.error("Failed to load YOLO model. Check model path or internet connection.")
+        else:
+            if mode == "📷 Live Camera":
+                if st.session_state.camera_active:
                     cap = cv2.VideoCapture(0)
                     if not cap.isOpened():
                         st.error("Failed to open camera. No physical camera detected.")
@@ -284,49 +237,42 @@ with col1:
                                 if not ret:
                                     st.error("Failed to read frame")
                                     break
-                                try:
-                                    annotated = process_frame(frame, detector, confidence, cooldown)
-                                    annotated_rgb = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
-                                    frame_placeholder.image(annotated_rgb, channels="RGB", width='stretch')
-                                except Exception as e:
-                                    st.error(f"Frame processing error: {e}")
-                                    frame_placeholder.image(frame, channels="BGR", width='stretch')
+                                annotated = process_frame(frame, detector, confidence, cooldown)
+                                annotated_rgb = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
+                                frame_placeholder.image(annotated_rgb, channels="RGB", width='stretch')
                                 time.sleep(0.1)
                             cap.release()
-                except Exception as e:
-                    st.error(f"Camera initialization error: {e}")
-                    st.session_state.camera_active = False
-            else:
-                st.info("Click 'Start Camera' in the sidebar to begin live surveillance")
-        else:
-            uploaded = st.file_uploader("Upload an image or video", type=["jpg", "jpeg", "png", "mp4", "avi", "mov"])
-            if uploaded is not None:
-                file_bytes = np.asarray(bytearray(uploaded.read()), dtype=np.uint8)
-                if uploaded.type.startswith("image"):
-                    img = cv2.imdecode(file_bytes, 1)
-                    annotated = process_frame(img, detector, confidence, cooldown)
-                    annotated_rgb = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
-                    st.image(annotated_rgb, channels="RGB", width='stretch', caption="Processed Image")
                 else:
-                    temp_path = os.path.join(EVIDENCE_DIR, "temp_video.mp4")
-                    with open(temp_path, "wb") as f:
-                        f.write(uploaded.getbuffer())
-                    cap = cv2.VideoCapture(temp_path)
-                    frame_placeholder = st.empty()
-                    stop_vid = st.button("Stop Video Processing")
-                    while cap.isOpened() and not stop_vid:
-                        ret, frame = cap.read()
-                        if not ret:
-                            break
-                        annotated = process_frame(frame, detector, confidence, cooldown)
-                        annotated_rgb = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
-                        frame_placeholder.image(annotated_rgb, channels="RGB", width='stretch')
-                        time.sleep(0.03)
-                    cap.release()
-                    if os.path.exists(temp_path):
-                        os.remove(temp_path)
+                    st.info("Click 'Start Camera' in the sidebar to begin live surveillance")
             else:
-                st.info("Upload an image or video file to test the surveillance system.")
+                uploaded = st.file_uploader("Upload an image or video", type=["jpg", "jpeg", "png", "mp4", "avi", "mov"])
+                if uploaded is not None:
+                    file_bytes = np.asarray(bytearray(uploaded.read()), dtype=np.uint8)
+                    if uploaded.type.startswith("image"):
+                        img = cv2.imdecode(file_bytes, 1)
+                        annotated = process_frame(img, detector, confidence, cooldown)
+                        annotated_rgb = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
+                        st.image(annotated_rgb, channels="RGB", width='stretch', caption="Processed Image")
+                    else:
+                        temp_path = os.path.join(EVIDENCE_DIR, "temp_video.mp4")
+                        with open(temp_path, "wb") as f:
+                            f.write(uploaded.getbuffer())
+                        cap = cv2.VideoCapture(temp_path)
+                        frame_placeholder = st.empty()
+                        stop_vid = st.button("Stop Video Processing")
+                        while cap.isOpened() and not stop_vid:
+                            ret, frame = cap.read()
+                            if not ret:
+                                break
+                            annotated = process_frame(frame, detector, confidence, cooldown)
+                            annotated_rgb = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
+                            frame_placeholder.image(annotated_rgb, channels="RGB", width='stretch')
+                            time.sleep(0.03)
+                        cap.release()
+                        if os.path.exists(temp_path):
+                            os.remove(temp_path)
+                else:
+                    st.info("Upload an image or video file to test the surveillance system.")
 
 with col2:
     st.header("Recent Alerts")
