@@ -172,7 +172,14 @@ st.markdown("---")
 
 with st.sidebar:
     st.header("Controls")
-    mode = st.radio("Input Mode", ["📷 Live Camera", "📁 Upload Media"], index=1)
+    
+    if not OPENCV_AVAILABLE:
+        st.error("⚠️ Limited Mode - OpenCV not available")
+        st.info("📁 Upload Media Only")
+        mode = "📁 Upload Media"
+    else:
+        mode = st.radio("Input Mode", ["📷 Live Camera", "📁 Upload Media"], index=1)
+    
     if mode == "📷 Live Camera":
         if st.button("▶️ Start Camera", key="start"):
             st.session_state.camera_active = True
