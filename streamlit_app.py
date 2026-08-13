@@ -1,10 +1,12 @@
 import streamlit as st
+import base64
 import os
 import json
 from datetime import datetime
 import pandas as pd
 import time
 import numpy as np
+from urllib import error, parse, request
 
 # Try to import OpenCV with graceful fallback
 try:
@@ -33,6 +35,8 @@ SNAPSHOT_DIR = os.path.join(BASE_DIR, "snapshots")
 EVIDENCE_DIR = os.path.join(BASE_DIR, "evidence")
 LOG_DIR = os.path.join(BASE_DIR, "logs")
 ALERTS_DB = os.path.join(BASE_DIR, "alerts.json")
+GITHUB_REPOSITORY = "shadow780915551-hash/VIGILANT"
+GITHUB_SNAPSHOT_BRANCH = "alert-snapshots"
 CONFIDENCE_THRESHOLD = 0.5
 ALERT_COOLDOWN = 10
 RESTRICTED_ZONE = [
@@ -115,14 +119,84 @@ def calculate_severity(confidence, num_detections, time_in_zone):
     else:
         return "HIGH"
 
+def _github_token():
+    return st.secrets.get("GITHUB_TOKEN", os.environ.get("GITHUB_TOKEN"))
+
+def _github_api(path, method="GET", payload=None):
+    token = _github_token()
+    if not token:
+        raise RuntimeError("GITHUB_TOKEN is not configured")
+
+    data = json.dumps(payload).encode("utf-8") if payload is not None else None
+    api_request = request.Request(
+        f"https://api.github.com/{path}",
+        data=data,
+        method=method,
+        headers={
+            "Accept": "application/vnd.github+json",
+            "Authorization": f"Bearer {token}",
+            "X-GitHub-Api-Version": "2022-11-28",
+        },
+    )
+    with request.urlopen(api_request, timeout=30) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+def _ensure_snapshot_branch():
+    try:
+        _github_api(f"repos/{GITHUB_REPOSITORY}/git/ref/heads/{GITHUB_SNAPSHOT_BRANCH}")
+    except error.HTTPError as exc:
+        if exc.code != 404:
+            raise
+        main_ref = _github_api(f"repos/{GITHUB_REPOSITORY}/git/ref/heads/master")
+        try:
+            _github_api(
+                f"repos/{GITHUB_REPOSITORY}/git/refs",
+                method="POST",
+                payload={
+                    "ref": f"refs/heads/{GITHUB_SNAPSHOT_BRANCH}",
+                    "sha": main_ref["object"]["sha"],
+                },
+            )
+        except error.HTTPError as create_error:
+            if create_error.code != 422:  # Another alert may have created it first.
+                raise
+
+def _upload_snapshot_to_github(filepath, filename):
+    _ensure_snapshot_branch()
+    with open(filepath, "rb") as image_file:
+        encoded_image = base64.b64encode(image_file.read()).decode("ascii")
+
+    _github_api(
+        f"repos/{GITHUB_REPOSITORY}/contents/{parse.quote(f'snapshots/{filename}')}",
+        method="PUT",
+        payload={
+            "message": f"Store alert snapshot {filename}",
+            "content": encoded_image,
+            "branch": GITHUB_SNAPSHOT_BRANCH,
+        },
+    )
+    return (
+        f"https://raw.githubusercontent.com/{GITHUB_REPOSITORY}/"
+        f"{GITHUB_SNAPSHOT_BRANCH}/snapshots/{filename}"
+    )
+
 def save_snapshot(frame):
     if not OPENCV_AVAILABLE:
         return None
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"alert_{timestamp}.jpg"
     filepath = os.path.join(SNAPSHOT_DIR, filename)
-    cv2.imwrite(filepath, frame)
-    return filepath
+    if not cv2.imwrite(filepath, frame):
+        st.error("Could not save the alert snapshot.")
+        return None
+
+    try:
+        github_url = _upload_snapshot_to_github(filepath, filename)
+        os.remove(filepath)
+        return github_url
+    except (RuntimeError, error.HTTPError, error.URLError) as exc:
+        st.error(f"Could not upload the alert snapshot to GitHub: {exc}")
+        return None
 
 def process_frame(frame, detector, confidence, cooldown):
     if not OPENCV_AVAILABLE or detector is None:
@@ -282,8 +356,11 @@ with col2:
                 st.write(f"Confidence: {conf:.2f}")
                 st.write(f"Detections: {detections}")
                 snapshot_path = alert.get('snapshot_path')
-                if snapshot_path and os.path.exists(snapshot_path):
-                    st.image(snapshot_path, caption="Alert Snapshot")
+                if snapshot_path:
+                    if snapshot_path.startswith(("https://", "http://")):
+                        st.image(snapshot_path, caption="Alert Snapshot")
+                    elif os.path.exists(snapshot_path):
+                        st.image(snapshot_path, caption="Alert Snapshot")
     else:
         st.info("No alerts recorded yet")
 
