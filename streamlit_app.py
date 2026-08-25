@@ -385,6 +385,45 @@ if st.session_state.alerts:
         file_name=f"alerts_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
         mime="text/csv"
     )
+    
+    st.markdown("### Download Individual Snapshots")
+    for idx, alert in enumerate(st.session_state.alerts):
+        snapshot_path = alert.get('snapshot_path')
+        if not snapshot_path:
+            continue
+        
+        timestamp = alert.get('timestamp', 'N/A')[:19]
+        severity = alert.get('severity', 'N/A')
+        
+        col1, col2 = st.columns([3, 1])
+        col1.write(f"📸 {timestamp} - {severity}")
+        
+        if snapshot_path.startswith(("https://", "http://")):
+            try:
+                with request.urlopen(snapshot_path, timeout=10) as response:
+                    image_data = response.read()
+                col2.download_button(
+                    label="⬇️",
+                    data=image_data,
+                    file_name=f"alert_{timestamp.replace(':', '-')}.jpg",
+                    mime="image/jpeg",
+                    key=f"download_{idx}"
+                )
+            except Exception:
+                col2.write("❌")
+        elif os.path.exists(snapshot_path):
+            try:
+                with open(snapshot_path, 'rb') as f:
+                    image_data = f.read()
+                col2.download_button(
+                    label="⬇️",
+                    data=image_data,
+                    file_name=f"alert_{timestamp.replace(':', '-')}.jpg",
+                    mime="image/jpeg",
+                    key=f"download_{idx}"
+                )
+            except Exception:
+                col2.write("❌")
 else:
     st.info("No alerts to display")
 
