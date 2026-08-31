@@ -68,22 +68,14 @@ def save_alerts(alerts):
 @st.cache_resource
 def load_detector():
     if not OPENCV_AVAILABLE:
-        st.warning("OpenCV not available. Cannot load detector in limited mode.")
         return None
         
-    if not os.path.exists(MODEL_PATH):
-        st.warning(f"Model file not found at: {MODEL_PATH}")
-        st.info("Please train the model first or place yolov8n.pt in the models/ folder.")
-        try:
-            from ultralytics import YOLO
-            st.info("Downloading default yolov8n.pt for demo use...")
-            return YOLO("yolov8n.pt")
-        except Exception as e:
-            st.error(f"Could not download default model: {e}")
-            return None
     try:
         from ultralytics import YOLO
-        return YOLO(MODEL_PATH)
+        if os.path.exists(MODEL_PATH):
+            return YOLO(MODEL_PATH)
+        else:
+            return YOLO("yolov8n.pt")
     except Exception as e:
         st.error(f"Error loading model: {e}")
         return None
