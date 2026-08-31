@@ -13,8 +13,7 @@ try:
     import cv2
     from PIL import Image
     OPENCV_AVAILABLE = True
-except Exception as e:
-    st.warning(f"OpenCV not available: {e}. Running in limited mode.")
+except Exception:
     OPENCV_AVAILABLE = False
     # Create dummy cv2 module to prevent crashes
     import types
