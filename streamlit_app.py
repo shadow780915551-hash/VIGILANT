@@ -180,14 +180,8 @@ def save_snapshot(frame):
     if not cv2.imwrite(filepath, frame):
         st.error("Could not save the alert snapshot.")
         return None
-
-    try:
-        github_url = _upload_snapshot_to_github(filepath, filename)
-        os.remove(filepath)
-        return github_url
-    except (RuntimeError, error.HTTPError, error.URLError) as exc:
-        st.error(f"Could not upload the alert snapshot to GitHub: {exc}")
-        return None
+    
+    return filepath
 
 def process_frame(frame, detector, confidence, cooldown):
     if not OPENCV_AVAILABLE or detector is None:
